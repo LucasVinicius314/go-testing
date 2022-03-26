@@ -1,46 +1,68 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"net/http"
 
-type Thing struct {
-	id   int
-	name string
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+type Post struct {
+	gorm.Model
+	Name string
+}
+
+func hello(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(w, "hello\n")
+}
+
+func newPost(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(w, "hello\n")
+}
+
+func headers(w http.ResponseWriter, req *http.Request) {
+	for name, headers := range req.Header {
+		for _, h := range headers {
+			fmt.Fprintf(w, "%v: %v\n", name, h)
+		}
+	}
 }
 
 func main() {
-	var t = 3
+	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 
-	var k = Thing{id: 3, name: "sapato"}
-
-	fmt.Println(k.id)
-
-	var stuff = []Thing{{id: 3, name: "sapato"}, {id: 4, name: "marcelo"}}
-
-	for u := 0; u < len(stuff); {
-		var thing = stuff[u]
-
-		fmt.Println(thing)
-
-		u++
+	if err != nil {
+		panic("failed to connect database")
 	}
 
-	g := 4
+	// Migrate the schema
+	db.AutoMigrate(&Post{})
 
-	for t >= 0 {
-		fmt.Println(g)
+	// Create
+	// db.Create(&Post{Name: "marcelo"})
 
-		t--
-	}
+	// Read
+	var posts []Post
 
-	var e = make([]int, 5)
+	db.Find(&posts)
 
-	for i := 0; i < len(e); {
-		fmt.Println(e[i])
+	// db.First(&product, 1)
+	// db.First(&product, "name = ?", "marcelo")
 
-		i++
-	}
+	// Update - update product's price to 200
+	// db.Model(&product).Update("Price", 200)
+	// Update - update multiple fields
+	// db.Model(&product).Updates(Post{Name: "caio"}) // non-zero fields
+	// db.Model(&product).Updates(map[string]interface{}{"Price": 200, "Code": "F42"})
 
-	defer fmt.Println("b")
+	// Delete - delete product
+	// db.Delete(&product, 1)
 
-	fmt.Println("a")
+	http.HandleFunc("/newpost", newPost)
+
+	http.HandleFunc("/hello", hello)
+	http.HandleFunc("/headers", headers)
+
+	http.ListenAndServe(":8090", nil)
 }
