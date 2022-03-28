@@ -6,37 +6,67 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"strconv"
+
+	"time"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
+type Model struct {
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"deletedAt" gorm:"index"`
+}
+
 type Post struct {
+	Model
 	Name    string `json:"name" binding:"required"`
 	Content string `json:"content" binding:"required"`
 }
 
-var db = []Post{{Name: "thing", Content: "well yes"}, {Name: "thing2", Content: "well yes2"}, {Name: "thing3", Content: "well yes3"}}
-
 func setupRouter() *gin.Engine {
+	db, err := gorm.Open(sqlite.Open("gin.db"), &gorm.Config{})
+
+	if err != nil {
+		panic("Database connection error.")
+	}
+
+	db.AutoMigrate(&Post{})
+
 	r := gin.Default()
 
 	r.GET("/ping", func(c *gin.Context) {
-		c.String(http.StatusOK, "pong")
+		c.JSON(http.StatusOK, gin.H{"message": "pong"})
 	})
 
 	r.GET("/posts", func(c *gin.Context) {
-		var values = db
+		var posts []Post
 
-		c.JSON(http.StatusOK, values)
+		db.Find(&posts)
+
+		c.JSON(http.StatusOK, posts)
 	})
 
 	r.GET("/post/:id", func(c *gin.Context) {
-		var id, _ = strconv.ParseUint(c.Params.ByName("id"), 10, 1)
+		var id, err = strconv.ParseUint(c.Params.ByName("id"), 10, 1)
 
-		var value = db[id]
+		if err != nil {
+			c.AbortWithError(http.StatusBadRequest, err)
+
+			return
+		}
+
+		var post Post
+
+		var value = db.First(&post, id)
 
 		c.JSON(http.StatusOK, value)
 	})
 
 	r.POST("/post", func(c *gin.Context) {
+
 		var post = Post{}
 
 		if err := c.BindJSON(&post); err != nil {
@@ -45,9 +75,9 @@ func setupRouter() *gin.Engine {
 			return
 		}
 
-		db = append(db, post)
+		db.Create(&Post{Name: post.Name, Content: post.Content})
 
-		c.JSON(http.StatusOK, gin.H{"message": "Post created."})
+		c.JSON(http.StatusCreated, gin.H{"message": "Post created."})
 	})
 
 	return r
@@ -55,8 +85,6 @@ func setupRouter() *gin.Engine {
 
 func main() {
 	r := setupRouter()
-
-	// Listen and Server in 0.0.0.0:8080
 
 	r.Run(":8080")
 }
